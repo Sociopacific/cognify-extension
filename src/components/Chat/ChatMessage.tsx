@@ -85,11 +85,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 
   return (
     <div
-      className={`p-3 my-2 rounded-xl max-w-[85%] text-sm leading-6 break-words shadow-sm animate-[fadeInMessage_0.3s_ease-out] 
+      className={`p-3 my-2 rounded-xl max-w-[85%] text-sm leading-6 break-words animate-[fadeInMessage_0.3s_ease-out] 
       ${
         message.role === "user"
-          ? "bg-[hsla(0,0%,91%,0.5)] text-gray-900 self-end ml-auto text-left shadow-none rounded-[12px_12px_0_12px]"
-          : "bg-transparent text-gray-900 self-start text-left mr-auto max-w-[95%] w-auto shadow-none rounded-[12px_12px_12px_0] border-l-0 pl-3"
+          ? "bg-[hsla(0,0%,91%,0.5)] text-gray-900 self-end ml-auto text-left shadow-sm rounded-[12px_12px_0_12px]"
+          : "bg-transparent text-gray-900 self-start text-left mr-auto max-w-[95%] w-auto shadow-none border-0 pl-3 rounded-none"
       }`}
     >
       {formatMessage(message.content)}

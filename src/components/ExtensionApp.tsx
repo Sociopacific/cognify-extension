@@ -7,6 +7,19 @@ import ChatWindow from "./Chat/ChatWindow";
 import ApiKeyModal from "./ApiKeyModal";
 import { getResourcesFromContainer } from "../types";
 import { hasApiKey, saveApiKey, sendChatRequest } from "../api/openai";
+import {
+  getChatHistory,
+  saveChatHistory,
+  deleteChat,
+  ChatHistoryItem,
+} from "../api/storage";
+import { getLimitedContextFromSelection, getPageText } from "../utils/context";
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  context?: string | null;
+}
 
 const ExtensionApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -19,15 +32,46 @@ const ExtensionApp: React.FC = () => {
   const [selectionPosition, setSelectionPosition] = useState({ x: 0, y: 0 });
   const [originalSelectionRect, setOriginalSelectionRect] =
     useState<DOMRect | null>(null);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [chats, setChats] = useState<ChatHistoryItem[]>([]);
   const resources = getResourcesFromContainer();
 
-  // Добавляем обработчик события выделения текста
+  // Обновленный обработчик события выделения текста
   const handleSelectionChange = () => {
     const selection = window.getSelection();
     if (selection && selection.toString().trim().length > 0) {
+      // Проверяем, находится ли выделение внутри элемента расширения
+      let isInsideExtension = false;
+
+      // Получаем элемент, в котором находится выделение
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        let node = range.commonAncestorContainer;
+
+        // Проходим вверх по DOM-дереву, чтобы найти #cognify-extension-root
+        while (node && node !== document.body) {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const element = node as Element;
+            if (
+              element.id === "cognify-extension-root" ||
+              element.closest("#cognify-extension-root")
+            ) {
+              isInsideExtension = true;
+              break;
+            }
+          }
+          node = node.parentNode as Node;
+        }
+      }
+
+      // Если выделение внутри расширения, просто игнорируем его
+      if (isInsideExtension) {
+        return;
+      }
+
       const text = selection.toString().trim();
       setSelectedText(text);
 
@@ -50,6 +94,9 @@ const ExtensionApp: React.FC = () => {
           }
         });
       }
+    } else {
+      // Если нет выделения, скрываем панель
+      setShowButtons(false);
     }
   };
 
@@ -113,6 +160,15 @@ const ExtensionApp: React.FC = () => {
     };
   }, [showButtons, originalSelectionRect]);
 
+  // Загружаем историю чатов при монтировании
+  useEffect(() => {
+    const loadHistory = async () => {
+      const history = await getChatHistory();
+      setChats(history);
+    };
+    loadHistory();
+  }, []);
+
   // Обработчики событий
   const handleOpenChat = () => {
     if (!apiKeyLoaded) {
@@ -153,12 +209,28 @@ const ExtensionApp: React.FC = () => {
     }
   };
 
+  // Функция для получения контекста в зависимости от настроек
+  const getContext = (
+    selection: Selection,
+    useWideContext: boolean
+  ): string | null => {
+    if (!selection) return null;
+
+    if (useWideContext) {
+      // Если включен Full Page Context, возвращаем весь текст страницы
+      return getPageText();
+    } else {
+      // Иначе возвращаем ограниченный контекст
+      return getLimitedContextFromSelection(selection);
+    }
+  };
+
   const handleExplain = async (
     text: string,
     useApi: boolean,
-    useContext: boolean
+    useWideContext: boolean
   ) => {
-    console.log("Объяснение: ", text, useApi, useContext);
+    console.log("Объяснение: ", text, useApi, useWideContext);
 
     // Если API режим выключен, открываем ChatGPT в новом окне
     if (!useApi) {
@@ -172,22 +244,45 @@ const ExtensionApp: React.FC = () => {
       return;
     }
 
-    setShowChat(true);
-    setError(null);
+    // Получаем контекст текущего выделения
+    const selection = window.getSelection();
+    const context = getContext(selection!, useWideContext);
+
+    // Создаем новый чат
+    const newChat: ChatHistoryItem = {
+      id: Date.now().toString(),
+      title: `Объяснение: ${text.slice(0, 50)}${text.length > 50 ? "..." : ""}`,
+      createdAt: Date.now(),
+      messages: [],
+    };
 
     // Добавляем сообщение пользователя
-    const userMessage = `Объясни: "${text}"`;
-    const newUserMessage = { role: "user" as const, content: userMessage };
-    setMessages((prev) => [...prev, newUserMessage]);
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: `Объясни: "${text}"`,
+      context: context,
+    };
+    newChat.messages.push(userMessage);
+
+    // Немедленно открываем чат и показываем сообщение пользователя
+    setShowChat(true);
+    setMessages([userMessage]);
+    setError(null);
 
     // Отправляем запрос к API
     setIsProcessing(true);
     try {
-      const response = await sendChatRequest([...messages, newUserMessage]);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant" as const, content: response },
-      ]);
+      const response = await sendChatRequest([userMessage]);
+      const assistantMessage: ChatMessage = {
+        role: "assistant",
+        content: response,
+      };
+      newChat.messages.push(assistantMessage);
+
+      // Сохраняем новый чат
+      await saveChatHistory([...chats, newChat]);
+      setChats((prev) => [...prev, newChat]);
+      setMessages([userMessage, assistantMessage]);
     } catch (error) {
       console.error("Ошибка при получении ответа:", error);
       if (
@@ -207,9 +302,9 @@ const ExtensionApp: React.FC = () => {
   const handleTranslate = async (
     text: string,
     useApi: boolean,
-    useContext: boolean
+    useWideContext: boolean
   ) => {
-    console.log("Перевод: ", text, useApi, useContext);
+    console.log("Перевод: ", text, useApi, useWideContext);
 
     // Если API режим выключен, открываем ChatGPT в новом окне
     if (!useApi) {
@@ -223,22 +318,45 @@ const ExtensionApp: React.FC = () => {
       return;
     }
 
+    // Получаем контекст текущего выделения
+    const selection = window.getSelection();
+    const context = getContext(selection!, useWideContext);
+
+    // Создаем новый чат
+    const newChat: ChatHistoryItem = {
+      id: Date.now().toString(),
+      title: `Перевод: ${text.slice(0, 50)}${text.length > 50 ? "..." : ""}`,
+      createdAt: Date.now(),
+      messages: [],
+    };
+
+    // Добавляем сообщение пользователя
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: `Переведи: "${text}"`,
+      context: context,
+    };
+    newChat.messages.push(userMessage);
+
+    // Немедленно открываем чат и показываем сообщение пользователя
     setShowChat(true);
+    setMessages([userMessage]);
     setError(null);
-
-    // Добавляем сообщение пользователя
-    const userMessage = `Переведи: "${text}"`;
-    const newUserMessage = { role: "user" as const, content: userMessage };
-    setMessages((prev) => [...prev, newUserMessage]);
 
     // Отправляем запрос к API
     setIsProcessing(true);
     try {
-      const response = await sendChatRequest([...messages, newUserMessage]);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant" as const, content: response },
-      ]);
+      const response = await sendChatRequest([userMessage]);
+      const assistantMessage: ChatMessage = {
+        role: "assistant",
+        content: response,
+      };
+      newChat.messages.push(assistantMessage);
+
+      // Сохраняем новый чат
+      await saveChatHistory([...chats, newChat]);
+      setChats((prev) => [...prev, newChat]);
+      setMessages([userMessage, assistantMessage]);
     } catch (error) {
       console.error("Ошибка при получении ответа:", error);
       if (
@@ -255,31 +373,65 @@ const ExtensionApp: React.FC = () => {
     }
   };
 
+  const handleShowHistory = () => {
+    setShowHistory(true);
+  };
+
+  const handleCloseHistory = () => {
+    setShowHistory(false);
+  };
+
+  const handleChatSelect = async (id: string) => {
+    const selectedChat = chats.find((chat) => chat.id === id);
+    if (selectedChat) {
+      setMessages(selectedChat.messages);
+      setShowHistory(false);
+    }
+  };
+
+  const handleChatDelete = async (id: string) => {
+    try {
+      await deleteChat(id);
+      setChats((prev) => prev.filter((chat) => chat.id !== id));
+    } catch (error) {
+      console.error("Ошибка при удалении чата:", error);
+      setError("Не удалось удалить чат");
+    }
+  };
+
+  // Обновляем handleSendMessage для сохранения истории
   const handleSendMessage = async (message: string) => {
-    console.log("Отправка сообщения: ", message);
+    if (!message.trim() || isProcessing) return;
 
-    // Для обычных сообщений в чате всегда используем API
-    if (!apiKeyLoaded) {
-      setShowApiKeyModal(true);
-      return;
-    }
-
+    const newUserMessage: ChatMessage = { role: "user", content: message };
+    setMessages((prev) => [...prev, newUserMessage]);
+    setIsProcessing(true);
     setError(null);
 
-    // Добавляем сообщение пользователя
-    const newUserMessage = { role: "user" as const, content: message };
-    setMessages((prev) => [...prev, newUserMessage]);
-
-    // Отправляем запрос к API
-    setIsProcessing(true);
     try {
       const response = await sendChatRequest([...messages, newUserMessage]);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant" as const, content: response },
-      ]);
+      const newAssistantMessage: ChatMessage = {
+        role: "assistant",
+        content: response,
+      };
+      const updatedMessages = [
+        ...messages,
+        newUserMessage,
+        newAssistantMessage,
+      ];
+      setMessages(updatedMessages);
+
+      // Сохраняем чат в историю
+      const newChat: ChatHistoryItem = {
+        id: Date.now().toString(),
+        title: message.slice(0, 50) + (message.length > 50 ? "..." : ""),
+        createdAt: Date.now(),
+        messages: updatedMessages,
+      };
+      await saveChatHistory([...chats, newChat]);
+      setChats((prev) => [...prev, newChat]);
     } catch (error) {
-      console.error("Ошибка при получении ответа:", error);
+      console.error("Ошибка при отправке сообщения:", error);
       if (
         (error as Error).message === "API key not found" ||
         (error as Error).message === "API key is invalid"
@@ -294,12 +446,15 @@ const ExtensionApp: React.FC = () => {
     }
   };
 
-  // Создаем отдельный обработчик для явного закрытия панели
+  // Добавляем явный обработчик для закрытия панели кнопок
   const handleCloseButtonsPanel = () => {
-    // Закрываем панель только если нет открытого модального окна
-    if (!document.body.classList.contains("modal-open")) {
-      setShowButtons(false);
-    }
+    setShowButtons(false);
+  };
+
+  // Обработчик для создания нового чата
+  const handleNewChat = () => {
+    setMessages([]);
+    setError(null);
   };
 
   return (
@@ -374,7 +529,7 @@ const ExtensionApp: React.FC = () => {
           {showButtons && selectedText && resources && (
             <ButtonsPanel
               selectedText={selectedText}
-              position={{ x: selectionPosition.x, y: selectionPosition.y }}
+              position={selectionPosition}
               onExplain={handleExplain}
               onTranslate={handleTranslate}
               onClose={handleCloseButtonsPanel}
@@ -383,21 +538,24 @@ const ExtensionApp: React.FC = () => {
           )}
 
           {resources && (
-            <FloatButton
-              onClick={handleOpenChat}
-              icon={resources.chatIconUrl || resources.iconUrl}
-            />
+            <FloatButton onClick={handleOpenChat} icon={resources.iconUrl} />
           )}
 
           {showChat && (
             <ChatWindow
-              title="Чат"
+              title="Cognify Chat"
               messages={messages}
               onSendMessage={handleSendMessage}
               onClose={handleCloseChat}
+              onShowHistory={handleShowHistory}
               isLoading={isProcessing}
               error={error}
-              onShowHistory={() => console.log("Показать историю")}
+              showHistory={showHistory}
+              chats={chats}
+              onChatSelect={handleChatSelect}
+              onChatDelete={handleChatDelete}
+              onCloseHistory={handleCloseHistory}
+              onNewChat={handleNewChat}
             />
           )}
 

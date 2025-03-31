@@ -4,6 +4,7 @@ import Switch from "../Switch/Switch";
 import Checkbox from "../Checkbox/Checkbox";
 import { CognifyResources, getResourcesFromContainer } from "../../types";
 import { hasApiKey } from "../../api/openai";
+import { getSettings, saveSettings } from "../../api/storage";
 
 // Компоненты для иконок с динамическими путями
 const ExplainIcon = ({ iconPath }: { iconPath: string }) => (
@@ -53,6 +54,16 @@ const ButtonsPanel: React.FC<ButtonsPanelProps> = ({
   const panelRef = useRef<HTMLDivElement>(null);
   const [panelPosition, setPanelPosition] = useState({ top: 0, left: 0 });
 
+  // Загружаем настройки при монтировании
+  useEffect(() => {
+    const loadSettings = async () => {
+      const settings = await getSettings();
+      setUseApi(settings.useApi);
+      setUseWideContext(settings.useWideContext);
+    };
+    loadSettings();
+  }, []);
+
   // Получаем пути к иконкам при монтировании компонента
   useEffect(() => {
     const containerResources = getResourcesFromContainer();
@@ -71,22 +82,35 @@ const ButtonsPanel: React.FC<ButtonsPanelProps> = ({
     // Проверяем наличие API ключа при инициализации компонента
     const checkApiKey = async () => {
       const hasKey = await hasApiKey();
-      setUseApi(hasKey); // Включаем API Mode только если есть ключ
+      if (hasKey) {
+        const settings = await getSettings();
+        setUseApi(settings.useApi);
+        setUseWideContext(settings.useWideContext);
+      }
     };
 
     checkApiKey();
 
-    // Обработчик для закрытия панели только при явном клике вне ее границ
+    // Обработчик для закрытия панели только при клике вне корневого элемента расширения (#cognify-extension-root)
     const handleDocumentMouseDown = (e: MouseEvent) => {
-      const clickOnExtensionApp = (e.target as HTMLElement).classList.contains(
-        "cognify-extension-app"
-      );
+      // Проверяем, что клик был не по корневому элементу расширения
+      const isExtensionRoot = (element: Element | null): boolean => {
+        while (element) {
+          if (element.id === "cognify-extension-root") {
+            return true;
+          }
+          element = element.parentElement;
+        }
+        return false;
+      };
 
-      if (clickOnExtensionApp) {
-        return;
+      // Если клик был не по корневому элементу расширения, закрываем панель
+      if (!isExtensionRoot(e.target as Element)) {
+        console.log(
+          "[Cognify React] ButtonsPanel: клик вне корневого элемента расширения, закрываем панель"
+        );
+        onClose();
       }
-
-      onClose();
     };
 
     // Обработчик для документа, чтобы закрывать панель
@@ -155,6 +179,9 @@ const ButtonsPanel: React.FC<ButtonsPanelProps> = ({
     // Если отключаем API режим, то выключаем и Full Page Context
     if (!checked) {
       setUseWideContext(false);
+      await saveSettings({ useApi: false, useWideContext: false });
+    } else {
+      await saveSettings({ useApi: true, useWideContext: useWideContext });
     }
 
     setUseApi(checked);
@@ -166,10 +193,17 @@ const ButtonsPanel: React.FC<ButtonsPanelProps> = ({
   };
 
   // Обработчик для Full Page Context, активен только если API Mode включен
-  const handleContextChange = (checked: boolean) => {
+  const handleContextChange = async (checked: boolean) => {
     if (useApi) {
       setUseWideContext(checked);
+      await saveSettings({ useApi, useWideContext: checked });
     }
+  };
+
+  // Предотвращаем снятие выделения при взаимодействии с панелью
+  const preventSelectionClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
   };
 
   // Если ресурсы не загружены, не отображаем панель
@@ -196,6 +230,9 @@ const ButtonsPanel: React.FC<ButtonsPanelProps> = ({
         pointerEvents: "auto" as React.CSSProperties["pointerEvents"],
         willChange: "transform",
       }}
+      onClick={preventSelectionClear}
+      onMouseDown={preventSelectionClear}
+      onMouseUp={preventSelectionClear}
     >
       <Button
         text="Explain"

@@ -15,6 +15,7 @@ const Switch: React.FC<SwitchProps> = ({
 }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation();
+    e.preventDefault();
 
     if (!disabled) {
       onChange(e.target.checked);
@@ -30,68 +31,69 @@ const Switch: React.FC<SwitchProps> = ({
     }
   };
 
-  const preventBubbling = (e: React.MouseEvent) => {
+  // Полное предотвращение пузырькового распространения событий и снятия выделения
+  const preventSelectionClear = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
   };
 
   return (
     <div
-      className="flex items-center mt-1.5 mb-0 px-3 pb-2 bg-transparent rounded-[24px] w-full"
-      onClick={preventBubbling}
-      onMouseDown={preventBubbling}
-      onMouseUp={preventBubbling}
+      className="flex items-center gap-3 py-2 px-3 bg-transparent rounded-[24px] w-full"
+      onClick={preventSelectionClear}
+      onMouseDown={preventSelectionClear}
+      onMouseUp={preventSelectionClear}
     >
       <label
-        className={`relative inline-block w-[46px] h-6 mr-2.5 ${
-          disabled ? "opacity-50 cursor-not-allowed" : ""
+        className={`relative inline-flex items-center w-[40px] h-[20px] ${
+          disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
         }`}
-        onClick={preventBubbling}
-        onMouseDown={preventBubbling}
+        onClick={preventSelectionClear}
+        onMouseDown={preventSelectionClear}
+        onMouseUp={preventSelectionClear}
       >
         <input
           type="checkbox"
-          className="opacity-0 w-0 h-0"
+          className="sr-only"
           checked={isChecked}
           onChange={handleChange}
-          onClick={preventBubbling}
+          onClick={preventSelectionClear}
           disabled={disabled}
         />
         <span
-          className={`absolute cursor-pointer inset-0 ${
+          className={`absolute inset-0 transition-colors duration-200 ease-in-out rounded-full ${
             disabled
               ? "bg-gray-200"
               : isChecked
               ? "bg-gray-900"
-              : "bg-transparent border-2 border-gray-900"
-          } transition-all duration-400 rounded-[34px]`}
+              : "bg-gray-100 border border-gray-300"
+          }`}
           onClick={handleLabelClick}
-          onMouseDown={preventBubbling}
+          onMouseDown={preventSelectionClear}
+          onMouseUp={preventSelectionClear}
         >
           <span
-            className={`absolute h-4 w-4 transition-all duration-400 rounded-full ${
-              isChecked ? "bg-white" : "bg-black"
+            className={`absolute top-[2px] left-[2px] w-4 h-4 transition-transform duration-200 ease-in-out rounded-full ${
+              isChecked ? "bg-white translate-x-5" : "bg-white"
             }`}
-            style={{
-              transform: isChecked ? "translateX(22px)" : "translateX(0)",
-              top: "2px",
-              left: isChecked ? "auto" : "2px",
-              right: isChecked ? "2px" : "auto",
-            }}
-            onClick={preventBubbling}
-          ></span>
+            onClick={preventSelectionClear}
+            onMouseDown={preventSelectionClear}
+            onMouseUp={preventSelectionClear}
+          />
         </span>
       </label>
 
       <span
-        className={`text-sm font-normal transition-all duration-200 ${
+        className={`text-sm transition-colors duration-200 ${
           disabled
             ? "text-gray-400 cursor-not-allowed"
             : isChecked
-            ? "font-semibold text-gray-900 cursor-pointer"
-            : "text-gray-500 cursor-pointer"
+            ? "font-medium text-gray-900 cursor-pointer"
+            : "text-gray-600 cursor-pointer"
         }`}
         onClick={handleLabelClick}
-        onMouseDown={preventBubbling}
+        onMouseDown={preventSelectionClear}
+        onMouseUp={preventSelectionClear}
       >
         {label}
       </span>

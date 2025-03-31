@@ -31,6 +31,10 @@ const Button: React.FC<ButtonProps> = ({
   }, [variant]);
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    // Предотвращаем снятие выделения
+    e.stopPropagation();
+    e.preventDefault();
+
     // Animation on click
     const button = e.currentTarget;
     button.style.transform = "scale(0.95)";
@@ -59,6 +63,12 @@ const Button: React.FC<ButtonProps> = ({
     }
   };
 
+  // Предотвращаем снятие выделения при взаимодействии
+  const preventSelectionClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+  };
+
   // Базовые классы кнопки
   const baseClasses =
     "m-0 py-2 px-3 font-medium font-sans border-none rounded-[50px] cursor-pointer transition-all duration-200 text-sm outline-none flex items-center justify-center h-[42px] shadow-none whitespace-nowrap w-auto";
@@ -78,6 +88,8 @@ const Button: React.FC<ButtonProps> = ({
       onClick={handleClick}
       onMouseOver={handleMouseOver}
       onMouseOut={handleMouseOut}
+      onMouseDown={preventSelectionClear}
+      onMouseUp={preventSelectionClear}
     >
       {icon && (
         <span

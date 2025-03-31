@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import ChatMessage, { Message } from "./ChatMessage";
 import { CognifyResources, getResourcesFromContainer } from "../../types";
-import ContextModal from "./ContextModal";
+import ContextPanel from "./ContextPanel";
+import ChatHistoryPanel from "./ChatHistoryPanel";
 
 interface ChatItem {
   id: string;
@@ -22,6 +23,7 @@ interface ChatWindowProps {
   onChatSelect?: (id: string) => void;
   onChatDelete?: (id: string) => void;
   onCloseHistory?: () => void;
+  onNewChat?: () => void;
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -37,6 +39,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   onChatSelect,
   onChatDelete,
   onCloseHistory,
+  onNewChat = () => {},
 }) => {
   const [inputValue, setInputValue] = useState("");
   const [resources, setResources] = useState<CognifyResources | null>(null);
@@ -109,6 +112,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     setCurrentContext(null);
   };
 
+  // Обработчик для создания нового чата
+  const handleNewChat = () => {
+    onNewChat(); // Вызываем переданный обработчик
+    setInputValue(""); // Очищаем поле ввода
+    if (inputRef.current) inputRef.current.focus(); // Фокус на поле ввода
+  };
+
   // Если ресурсы не загружены, показываем заглушку
   if (!resources) {
     return (
@@ -121,14 +131,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     );
   }
 
-  // Определяем заголовок в зависимости от текущего режима
-  let headerTitle = title;
-  if (showHistory) {
-    headerTitle = "Chat history";
-  } else if (showContext) {
-    headerTitle = "Context";
-  }
-
   return (
     <div
       className="chat-window bg-white shadow-xl rounded-[32px] overflow-hidden flex flex-col"
@@ -137,118 +139,123 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         bottom: "20px",
         right: "20px",
         width: "350px",
-        height: "500px",
+        height: "calc(100vh - 40px)",
+        maxHeight: "calc(100vh - 40px)",
         zIndex: 2147483647,
         pointerEvents: "auto" as React.CSSProperties["pointerEvents"],
       }}
     >
-      <div className="flex justify-between items-center p-5 px-6 bg-white text-gray-900 font-semibold text-base border-b border-[rgba(0,0,0,0.1)] h-[60px] box-border">
-        <div className="flex items-center gap-2.5">
-          <img
-            src={resources.iconUrl}
-            alt={title}
-            className="w-5 h-5 filter brightness-0"
-          />
-          <span>{headerTitle}</span>
+      {showHistory && (
+        <ChatHistoryPanel
+          chats={chats}
+          onChatSelect={onChatSelect || (() => {})}
+          onChatDelete={onChatDelete || (() => {})}
+          onClose={onCloseHistory || (() => {})}
+          onCloseWindow={onClose}
+          onNewChat={handleNewChat}
+        />
+      )}
 
-          {!showHistory && !showContext && (
-            <button
-              className="ml-2.5 bg-transparent border-none text-gray-900 cursor-pointer text-2xl leading-none opacity-80 transition-opacity duration-200 h-[30px] w-[30px] flex items-center justify-center rounded-md hover:opacity-100 hover:bg-[rgba(0,0,0,0.04)]"
-              onClick={onShowHistory}
-              title="Chat history"
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
+      {showContext && currentContext && (
+        <ContextPanel
+          context={currentContext}
+          onClose={handleCloseContext}
+          onCloseWindow={onClose}
+        />
+      )}
+
+      {!showHistory && !showContext && (
+        <>
+          <div className="flex justify-between items-center p-5 px-6 bg-white text-gray-900 font-semibold text-base border-b border-[rgba(0,0,0,0.1)] h-[60px] box-border">
+            <div className="flex items-center gap-2.5">
+              <img
+                src={resources.iconUrl}
+                alt={title}
+                className="w-5 h-5 filter brightness-0"
+              />
+              <span>{title}</span>
+              <button
+                className="ml-2.5 bg-transparent border-none text-gray-900 cursor-pointer text-2xl leading-none opacity-80 transition-opacity duration-200 h-[30px] w-[30px] flex items-center justify-center rounded-md hover:opacity-100 hover:bg-[rgba(0,0,0,0.04)]"
+                onClick={handleNewChat}
+                title="Новый чат"
               >
-                <path
-                  d="M12 8V12L15 15M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          )}
-
-          {(showHistory || showContext) && (
-            <button
-              className="ml-2.5 bg-transparent border-none text-gray-900 cursor-pointer text-2xl leading-none opacity-80 transition-opacity duration-200 h-[30px] w-[30px] flex items-center justify-center rounded-md hover:opacity-100 hover:bg-[rgba(0,0,0,0.04)]"
-              onClick={showHistory ? onCloseHistory : handleCloseContext}
-              title="Back to chat"
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M19 12H5M5 12L12 19M5 12L12 5"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          )}
-        </div>
-
-        <button
-          className="bg-transparent border-none text-gray-900 cursor-pointer text-2xl leading-none opacity-80 transition-opacity duration-200 h-[30px] w-[30px] flex items-center justify-center rounded-md hover:opacity-100 hover:bg-[rgba(0,0,0,0.04)]"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
-
-      <div className="flex flex-col h-[calc(100%-60px)] max-h-full flex-grow">
-        {!showHistory && !showContext ? (
-          <>
-            <div
-              className="p-4 px-5 overflow-y-auto leading-relaxed text-[15px] text-gray-700 scrollbar-hide flex flex-col flex-grow text-left"
-              ref={messagesContainerRef}
-            >
-              {messages.map((message, index) => (
-                <ChatMessage
-                  key={index}
-                  message={message}
-                  onContextClick={handleContextClick}
-                />
-              ))}
-
-              {isLoading && (
-                <div className="flex items-center justify-start p-4 my-2.5 text-sm text-gray-600 text-left">
-                  <div className="inline-block w-5 h-5 border-2 border-[rgba(0,0,0,0.1)] rounded-full border-t-gray-800 animate-spin mr-2.5"></div>
-                  <span>Getting response...</span>
-                </div>
-              )}
-
-              {error && !isLoading && messages.length === 0 && (
-                <div className="flex items-center p-3 px-4 my-2.5 bg-[rgba(255,0,0,0.05)] border border-[rgba(255,0,0,0.2)] rounded-lg text-red-600 text-sm text-left">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 4V20M4 12H20"
                     stroke="currentColor"
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="mr-2.5"
-                  >
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                  </svg>
-                  <span>{error}</span>
+                  />
+                </svg>
+              </button>
+              <button
+                className="bg-transparent border-none text-gray-900 cursor-pointer text-2xl leading-none opacity-80 transition-opacity duration-200 h-[30px] w-[30px] flex items-center justify-center rounded-md hover:opacity-100 hover:bg-[rgba(0,0,0,0.04)]"
+                onClick={onShowHistory}
+                title="История чатов"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 8V12L15 15M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
+            <button
+              className="bg-transparent border-none text-gray-900 cursor-pointer text-2xl leading-none opacity-80 transition-opacity duration-200 h-[30px] w-[30px] flex items-center justify-center rounded-md hover:opacity-100 hover:bg-[rgba(0,0,0,0.04)]"
+              onClick={onClose}
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="flex flex-col h-[calc(100%-60px)] max-h-full flex-grow">
+            <div
+              ref={messagesContainerRef}
+              className="flex-grow overflow-y-auto py-2.5 px-5 flex flex-col scrollbar-hide"
+            >
+              {messages.length === 0 ? (
+                <div className="text-gray-500 text-center my-auto text-sm">
+                  Задайте ваш вопрос или используйте функцию перевода/объяснения
+                  при выделении текста
+                </div>
+              ) : (
+                messages.map((message, index) => (
+                  <ChatMessage
+                    key={index}
+                    message={message}
+                    onContextClick={handleContextClick}
+                  />
+                ))
+              )}
+
+              {isLoading && (
+                <div className="typing-indicator self-start bg-gray-100 p-3 my-2 rounded-xl">
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                </div>
+              )}
+
+              {error && (
+                <div className="bg-red-100 text-red-700 p-3 my-2 rounded-xl text-sm">
+                  {error}
                 </div>
               )}
             </div>
@@ -288,48 +295,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                 />
               </button>
             </form>
-          </>
-        ) : showHistory ? (
-          <div className="flex flex-col overflow-y-auto flex-grow py-2.5 scrollbar-hide">
-            {chats.length === 0 ? (
-              <div className="p-5 text-center text-gray-600 text-sm">
-                You don't have any saved chats yet
-              </div>
-            ) : (
-              <div className="flex flex-col w-full">
-                {chats.map((chat) => (
-                  <div
-                    key={chat.id}
-                    className="flex justify-between items-center p-3 px-5 border-b border-[rgba(0,0,0,0.05)] cursor-pointer transition-colors duration-200 hover:bg-gray-50"
-                    onClick={() => onChatSelect?.(chat.id)}
-                  >
-                    <div className="flex-grow overflow-hidden">
-                      <div className="text-[15px] font-medium text-gray-900 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">
-                        {chat.title}
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        {formatDate(chat.createdAt)}
-                      </div>
-                    </div>
-                    <button
-                      className={`bg-transparent border-none text-gray-600 cursor-pointer py-1.5 px-2.5 rounded text-xs opacity-80 transition-all duration-200 hover:bg-[rgba(0,0,0,0.05)] hover:opacity-100 ${
-                        deleteConfirmId === chat.id
-                          ? "bg-red-700 text-white hover:bg-red-800"
-                          : ""
-                      }`}
-                      onClick={(e) => handleDeleteClick(e, chat.id)}
-                    >
-                      {deleteConfirmId === chat.id ? "Confirm" : "Delete"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
-        ) : (
-          <ContextModal context={currentContext} onClose={handleCloseContext} />
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 };
