@@ -120,7 +120,7 @@ const injectReactApp = async () => {
     // Загружаем скрипт с React-приложением
     console.log("[Cognify] Загрузка bundle.js");
     const script = document.createElement("script");
-    script.src = chrome.runtime.getURL("main.bundle.js");
+    script.src = chrome.runtime.getURL("bundle.js");
 
     // Добавляем обработчики событий
     script.onload = () => {

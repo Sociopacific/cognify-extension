@@ -1,0 +1,1 @@
+{"version":3,"file":"background.js","sources":["../background.js"],"sourcesContent":["// Инициализация расширения\nchrome.runtime.onInstalled.addListener(() => {\n  console.log(\"Расширение ChatGPT Explainer успешно установлено\");\n});\n"],"names":[],"mappings":"AACA,OAAO,QAAQ,YAAY,YAAY,IAAM,CAC3C,QAAQ,IAAI,kDAAkD,CAChE,CAAC"}

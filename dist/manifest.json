@@ -29,7 +29,7 @@
   "host_permissions": ["https://api.openai.com/*"],
   "web_accessible_resources": [
     {
-      "resources": ["main.bundle.js", "assets/*", "tailwind.css"],
+      "resources": ["bundle.js", "assets/*", "tailwind.css"],
       "matches": ["<all_urls>"]
     }
   ]

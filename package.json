@@ -4,13 +4,13 @@
   "description": "Cognify is a powerful Chrome extension that allows you to instantly explain and translate text from any webpage. With a sleek chat interface, you can ask follow-up questions and get context-aware responses powered by ChatGPT.",
   "main": "background.js",
   "scripts": {
-    "start": "webpack serve --mode development",
+    "dev": "vite",
     "build": "npm run build:css && npm run build:extension",
     "build:css": "node scripts/build-tailwind.js",
-    "build:extension": "rm -rf dist && webpack --mode production && npm run build:css && npm run copy-assets && npm run generate-icons && cp manifest.json dist/ && cp background.js dist/ && cp content.js dist/ && cp content.css dist/",
+    "build:extension": "rm -rf dist && vite build && npm run build:css && npm run copy-assets && npm run generate-icons && cp manifest.json dist/ && cp content.css dist/ && cp content.js dist/ && cp background.js dist/",
     "copy-assets": "mkdir -p dist/assets && cp -r src/assets/* dist/assets/",
     "generate-icons": "mkdir -p scripts && node scripts/generate-icons.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "preview": "vite preview"
   },
   "keywords": [
     "chrome-extension",
@@ -36,18 +36,12 @@
     "@types/chrome": "^0.0.313",
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^5.0.2",
+    "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.21",
     "canvas": "^3.1.0",
-    "css-loader": "^7.1.2",
-    "html-webpack-plugin": "^5.6.3",
     "postcss": "^8.5.3",
     "postcss-cli": "^11.0.1",
-    "postcss-loader": "^8.1.1",
-    "style-loader": "^4.0.0",
-    "ts-loader": "^9.5.2",
     "typescript": "^5.8.2",
-    "webpack": "^5.98.0",
-    "webpack-cli": "^6.0.1",
-    "webpack-dev-server": "^5.2.1"
+    "vite": "^5.1.4"
   }
 }
